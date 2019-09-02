@@ -3,19 +3,15 @@ import pandas as pd
 import os 
 import numpy as np 
 
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-
 import matplotlib.pyplot as plt
 
 print("LOADING DATA")
 
 #Load Data
-minMax =  MinMaxScaler()
 df = pd.read_csv('bitcoinDataset.csv')
 df = df[['Unix Timestamp', 'Open', 'High', 'Low', 'Close']]
 df = df.sort_values('Unix Timestamp', ascending=True)
-df = df.drop('Unix Timestamp', axis=1)
+#df = df.drop('Unix Timestamp', axis=1)
 
 #Change data from old to new from new to old instead
 print(df.head())
@@ -26,7 +22,7 @@ df = df.to_numpy()
 
 #Select all coluns for X and just one for Y
 trainX = df
-trainY = df[:, 3]
+trainY = df[:, df.shape[1]-1]
 
 rows = int(trainX.shape[0])
 columns = int(trainX.shape[1])
@@ -40,7 +36,7 @@ trainY = trainY[1:rows]
 trainY = trainY.reshape(trainY.shape[0], 1)
 
 #Create Decision TAB
-trainY = trainX[:,3] - trainY[:,0]
+trainY = trainX[:,df.shape[1]-1] - trainY[:,0]
 
 #Reshape to trainable values
 trainX = trainX.reshape(trainX.shape[0], 1, trainX.shape[1])
@@ -50,7 +46,7 @@ print(trainX.shape)
 print(trainY.shape)
 
 #Declare Broker fee
-brokerFees = 0
+brokerFees = 2.5
 
 trainY[trainY>brokerFees] = 1000000
 trainY[trainY<-brokerFees] = 2000000
@@ -60,12 +56,18 @@ trainY[(trainY<brokerFees)&(trainY>-brokerFees)] = 3000000
 # 0  is sell
 # 1 is buy
 # 2 is do nothing
-trainY[trainY==1000000] = 0
-trainY[trainY==2000000] = 1
-trainY[trainY==3000000] = 2
-trainY = abs(trainY)
+newTrainY = np.zeros((trainY.shape[0],3))
+print("NEW ARAY : ", newTrainY.shape)
+indexes = np.where(trainY == 1000000.)
+newTrainY[indexes,:] = [1,0,0]
+indexes = np.where(trainY == 2000000.)
+newTrainY[indexes,:] = [0,1,0]
+indexes = np.where(trainY == 3000000.)
+newTrainY[indexes, :] = [0,0,1]
+trainY = newTrainY
 
 #plt.hist(trainY)
+#plt.savefig('dataDistribution.png')
 #plt.waitforbuttonpress()
 
 for i in range(rows-100,rows-1):
@@ -77,29 +79,32 @@ print(trainY.shape)
 model = tf.keras.models.Sequential([
     #INPUT LAYER
     tf.compat.v1.keras.layers.CuDNNLSTM(128, input_shape=(trainX.shape[1:]), return_sequences = True),
-    tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.BatchNormalization(),
+    tf.keras.layers.Dropout(0.5),
+    #tf.keras.layers.BatchNormalization(),
     
     #HIDDEN LAYER
     tf.compat.v1.keras.layers.CuDNNLSTM(128, return_sequences = True),
-    tf.keras.layers.Dropout(0.1),
-    tf.keras.layers.BatchNormalization(),
-    
+    tf.keras.layers.Dropout(0.5),
+    #tf.keras.layers.BatchNormalization(),
+
     tf.compat.v1.keras.layers.CuDNNLSTM(128),
     tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.BatchNormalization(),
-    
-    tf.keras.layers.Dense(32, activation='relu'),
-    tf.keras.layers.Dropout(0.2),
+    #tf.keras.layers.BatchNormalization(),
+
+    #tf.keras.layers.Dense(32, activation='relu'),
+    #tf.keras.layers.Dropout(0.2),
+
+    #tf.keras.layers.Dense(16, activation='relu'),
+    #tf.keras.layers.Dropout(0.2),
     
     #OUTPUT LAYER
     tf.keras.layers.Dense(3, activation='softmax')
 ])
 
 
-optimizer = tf.keras.optimizers.Adam(lr=0.001, decay=1e-6)
+optimizer = tf.keras.optimizers.Adam()
 model.compile(  optimizer=optimizer,
-                loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+                loss='binary_crossentropy', metrics=['accuracy'])
 
 print(model.summary())
 
@@ -116,10 +121,7 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(checkPointDIR,
                                                      save_weights_only=True,
                                                      verbose=0)
 
-model.save('bitcoinv1.h5')
-
-
 while True:
-    history = model.fit(trainX, trainY, epochs = 3, batch_size = 64, shuffle=True, validation_split=0.05, callbacks=[cp_callback, tensorboard_callback])
-    model.evaluate(trainX, trainY)
+    history = model.fit(trainX, trainY, epochs = 10, batch_size = 1024, shuffle=True, validation_split=0.05, callbacks=[cp_callback])
+
     model.save_weights('training/bitcoinWeights.h5')
