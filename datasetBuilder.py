@@ -8,7 +8,6 @@ import datetime
 import time
 
 import matplotlib.pyplot as plt
-import pandas_datareader.data as web
 
 #Downloads all the datasets from Gemini website for per minute
 def downloadAllDatasets():
@@ -37,6 +36,19 @@ def joinDatasets():
     bitcoinDataset = bitcoinDataset.merge(y17, how='outer')
     bitcoinDataset = bitcoinDataset.merge(y16, how='outer')
     bitcoinDataset = bitcoinDataset.merge(y15, how='outer')
+    
+    bitcoinDataset.to_csv('bitcoinDataset.csv')
+        
+    b = pd.read_csv('bitcoinDataset.csv')
+    print(b.head())
+    
+def joinDatasetsFrom2017():
+    y17 = pd.read_csv("gemini_BTCUSD_2017_1min.csv", skiprows=range(0,1))
+    y18 = pd.read_csv("gemini_BTCUSD_2018_1min.csv", skiprows=range(0,1))
+    y19 = pd.read_csv("gemini_BTCUSD_2019_1min.csv", skiprows=range(0,1))
+    
+    bitcoinDataset = y19.merge(y18, how='outer')
+    bitcoinDataset = bitcoinDataset.merge(y17, how='outer')
     
     bitcoinDataset.to_csv('bitcoinDataset.csv')
         
@@ -186,6 +198,16 @@ def initializeOnly():
     joinDatasets()  
     print("GET MISSING DATASET")
     updateUsingAPIs()
+    
+def initializeOnly2017():
+    print("DOWNLOAD ALL DATASETS")
+    downloadAllDatasets()
+    print("DOWNLOAD LATEST ONLY")
+    downloadLatestDatasetsOnly()
+    print("JOIN DATASET")
+    joinDatasetsFrom2017()  
+    print("GET MISSING DATASET")
+    updateUsingAPIs()
 
 def initializeAndRun():
     downloadAllDatasets()
@@ -215,12 +237,13 @@ def buySellStayDataSorter():
     columns = np.append(columns, ['Decision'])
     columns = columns[1:]
     print("COLUMNs :", columns)
-    temp = pd.DataFrame(columns=columns)
     
-    for i in range(df.shape[0]):
-        print(i)
-        # 0  is buy
-        # 1 is sell
+    #temp = pd.DataFrame(columns=columns)
+    temp = pd.read_csv('SortedBitcoinDataset.csv')
+    
+    for i in range(35000, df.shape[0]):
+        # 0  is sell
+        # 1 is buy
         # 2 is do nothing
         change = df.iloc[i+1]['Close'] - df.iloc[i]['Close']
         if abs(change) > 2.5:
@@ -241,6 +264,15 @@ def buySellStayDataSorter():
                                             'Volume' : df.iloc[i]['Volume'],
                                             'Decision' : decision
                             }, ignore_index=True)
+        
+        if i%1000 == 0:
+            print(i)
+        
+        if i%10000:
+            temp = temp.sort_values('Unix Timestamp', ascending=True)
+            temp.to_csv('SortedBitcoinDataset.csv')
     
     temp = temp.sort_values('Unix Timestamp', ascending=True)
     temp.to_csv('SortedBitcoinDataset.csv')
+    
+initializeOnly()
