@@ -275,4 +275,127 @@ def buySellStayDataSorter():
     temp = temp.sort_values('Unix Timestamp', ascending=True)
     temp.to_csv('SortedBitcoinDataset.csv')
     
-initializeOnly()
+def buildFinalTrainingData():
+    print("LOADING DATA")
+
+    #Load Data
+    df = pd.read_csv('bitcoinDataset.csv')
+    df = df[['Unix Timestamp', 'Open', 'High', 'Low', 'Close']]
+    df = df.sort_values('Unix Timestamp', ascending=True)
+    df = df.drop('Unix Timestamp', axis=1)
+
+    #Convert to Numpy
+    df = df.to_numpy()
+
+    #Select all coluns for X and just one for Y
+    trainX = df
+    trainY = df[:, df.shape[1]-1]
+
+    rows = int(trainX.shape[0])
+    columns = int(trainX.shape[1])
+
+    #Drop last and first to make first to a second value and Last X value to None
+    trainX = trainX[:(rows-1)]
+    trainY = trainY[1:rows]
+    trainY = trainY.reshape(trainY.shape[0], 1)
+    
+    data = np.concatenate((trainX,trainY), axis=1)
+    #print(data.shape)
+    np.random.shuffle(data)
+    
+    trainX = data[:, :4]
+    trainY = data[:, 4]
+    
+    #print(trainX.shape, trainY.shape)
+    for i in range(10) : 
+        print(trainX[i], trainY[i])
+
+    #Create Decision TAB
+    trainX = trainX.reshape(trainX.shape[0], 1, trainX.shape[1])
+    trainY = trainY.reshape(trainY.shape[0], 1)
+    print(trainX.shape, trainY.shape)
+    trainY = trainX[:,0, 3] - trainY[:,0]
+    print("AFTER RESHAPE ", trainX.shape, trainY.shape)
+
+    #Reshape to trainable values
+    #trainX = trainX.reshape(trainX.shape[0], 1, trainX.shape[1])
+    trainY = trainY.reshape(trainY.shape[0], 1)
+
+    #Declare Broker fee
+    #########################################################
+    brokerFees = 2.5
+    #########################################################
+
+    trainY[trainY>brokerFees] = 1000000
+    trainY[trainY<-brokerFees] = 2000000
+    trainY[(trainY<brokerFees)&(trainY>-brokerFees)] = 3000000
+
+    #Convert 1 to 0 and 2 to 1 and 3 to 2
+    # 1  is sell
+    # 2 is buy
+    # 3 is do nothing
+    indexes = np.where(trainY==1000000)
+    trainY[indexes] = 1
+    indexes = np.where(trainY==2000000)
+    trainY[indexes] = 2
+    indexes = np.where(trainY==3000000)
+    trainY[indexes] = 3
+
+    #Display Data
+    #plt.hist(trainY)
+    #plt.savefig('dataDistribution.png')
+    #plt.waitforbuttonpress()
+
+    #TODO : Get the count of sell data
+    #Get the same amount of Other Data
+    #Combine them to have equal numbers for training
+    #Convert others to test Data
+    X = trainX
+    Y = trainY
+
+
+    if np.count_nonzero(Y==1) < np.count_nonzero(Y==2):
+        count = np.count_nonzero(Y==1)
+    else:
+        count = np.count_nonzero(Y==2)
+
+    sellIndexes = np.where(trainY==1)
+    buyIndexes = np.where(trainY==2)
+    DNsIndexes = np.where(trainY==3)
+
+    buysX = X[buyIndexes]
+    buysY = Y[buyIndexes]
+
+    sellX = X[sellIndexes]
+    sellY = Y[sellIndexes]
+
+    DNsX = X[DNsIndexes]
+    DNsY = Y[DNsIndexes]
+
+    trainX = np.concatenate((buysX[:count], sellX[:count], DNsX[:count]), axis = 0)
+    trainY = np.concatenate((buysY[:count], sellY[:count], DNsY[:count]), axis = 0)
+
+    testX = np.concatenate((buysX[count:], sellX[count:], DNsX[count:]), axis = 0)
+    testY = np.concatenate((buysY[count:], sellY[count:], DNsY[count:]), axis = 0)
+
+    trainX = np.reshape(trainX, (trainX.shape[0], 1, trainX.shape[1]))
+    trainY = np.reshape(trainY, (trainY.shape[0], 1))
+    testX = np.reshape(testX, (testX.shape[0], 1, testX.shape[1]))
+    testY = np.reshape(testY, (testY.shape[0], 1))
+
+    np.save('trainX', trainX)
+    np.save('trainY', trainY)
+    np.save('testX', testX)
+    np.save('testY', testY)
+        
+    print(trainX.shape)
+    print(trainY.shape)
+    print(testX.shape)
+    print(testY.shape)
+    
+    plt.hist(trainY)
+    plt.savefig('dataDistribution.png')
+    plt.show()
+    plt.waitforbuttonpress()
+    
+buildFinalTrainingData()
