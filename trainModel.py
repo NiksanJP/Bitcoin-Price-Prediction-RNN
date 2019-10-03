@@ -2,109 +2,65 @@ import tensorflow as tf
 import pandas as pd 
 import os 
 import numpy as np 
+import random
 
 import matplotlib.pyplot as plt
+from keras.regularizers import l1
 
-print("LOADING DATA")
+trainX = np.load('trainTestData/trainX.npy')
+trainY = np.load('trainTestData/trainY.npy')
+testX = np.load('trainTestData/testX.npy')
+testY = np.load('trainTestData/testY.npy')
 
-#Load Data
-df = pd.read_csv('bitcoinDataset.csv')
-df = df[['Unix Timestamp', 'Open', 'High', 'Low', 'Close']]
-df = df.sort_values('Unix Timestamp', ascending=True)
-#df = df.drop('Unix Timestamp', axis=1)
+trainX = trainX.astype(int)
+trainY = trainY.astype(int)
+testX = testX.astype(int)
+testY = testY.astype(int)
 
-#Change data from old to new from new to old instead
-print(df.head())
-print(df.tail())
+print(trainX.shape, trainY.shape)
+print(testX.shape, testY.shape)
 
-#Convert to Numpy
-df = df.to_numpy()
+print(np.isnan(trainX).any())
+print(np.isnan(trainY).any())
+print(np.isnan(testX).any())
+print(np.isnan(testY).any())
 
-#Select all coluns for X and just one for Y
-trainX = df
-trainY = df[:, df.shape[1]-1]
+print(np.any(trainX[:,:,:]==0))
+print(np.any(trainY[:,:]==0))
+print(np.any(testX[:,:,:]==0))
+print(np.any(testY[:,:]==0))
 
-rows = int(trainX.shape[0])
-columns = int(trainX.shape[1])
-
-#Drop last and first to make first to a second value and Last X value to None
-trainX = trainX[:(rows-1)]
-trainY = trainY[1:rows]
-
-#Reshape to trainable values
-#trainX = trainX.reshape(trainX.shape[0], 1, 5)
-trainY = trainY.reshape(trainY.shape[0], 1)
-
-#Create Decision TAB
-trainY = trainX[:,df.shape[1]-1] - trainY[:,0]
-
-#Reshape to trainable values
-trainX = trainX.reshape(trainX.shape[0], 1, trainX.shape[1])
-trainY = trainY.reshape(trainY.shape[0], 1)
-
-print(trainX.shape)
-print(trainY.shape)
-
-#Declare Broker fee
-brokerFees = 2.5
-
-trainY[trainY>brokerFees] = 1000000
-trainY[trainY<-brokerFees] = 2000000
-trainY[(trainY<brokerFees)&(trainY>-brokerFees)] = 3000000
-
-#Convert 1 to 0 and 2 to 1 and 3 to 2
-# 0  is sell
-# 1 is buy
-# 2 is do nothing
-newTrainY = np.zeros((trainY.shape[0],3))
-print("NEW ARAY : ", newTrainY.shape)
-indexes = np.where(trainY == 1000000.)
-newTrainY[indexes,:] = [1,0,0]
-indexes = np.where(trainY == 2000000.)
-newTrainY[indexes,:] = [0,1,0]
-indexes = np.where(trainY == 3000000.)
-newTrainY[indexes, :] = [0,0,1]
-trainY = newTrainY
-
-#plt.hist(trainY)
-#plt.savefig('dataDistribution.png')
-#plt.waitforbuttonpress()
-
-for i in range(rows-100,rows-1):
-    print(trainX[i, 0, 1:], trainY[i])
-    
-print(trainX.shape)
-print(trainY.shape)
+for i in range(10):
+    num = random.randint(0, trainX.shape[0])
+    print(trainX[num], trainY[num])
 
 model = tf.keras.models.Sequential([
     #INPUT LAYER
     tf.compat.v1.keras.layers.CuDNNLSTM(128, input_shape=(trainX.shape[1:]), return_sequences = True),
-    tf.keras.layers.Dropout(0.5),
-    #tf.keras.layers.BatchNormalization(),
+    #tf.keras.layers.Dropout(0.2),
+    tf.keras.layers.BatchNormalization(),
     
     #HIDDEN LAYER
     tf.compat.v1.keras.layers.CuDNNLSTM(128, return_sequences = True),
-    tf.keras.layers.Dropout(0.5),
-    #tf.keras.layers.BatchNormalization(),
+    #tf.keras.layers.Dropout(0.1),
+    tf.keras.layers.BatchNormalization(),
 
     tf.compat.v1.keras.layers.CuDNNLSTM(128),
-    tf.keras.layers.Dropout(0.2),
-    #tf.keras.layers.BatchNormalization(),
-
-    #tf.keras.layers.Dense(32, activation='relu'),
     #tf.keras.layers.Dropout(0.2),
+    tf.keras.layers.BatchNormalization(),
 
-    #tf.keras.layers.Dense(16, activation='relu'),
+    tf.keras.layers.Dense(32, activation='tanh'),
     #tf.keras.layers.Dropout(0.2),
     
     #OUTPUT LAYER
-    tf.keras.layers.Dense(3, activation='softmax')
+    tf.keras.layers.Dense(2, activation='softmax')
 ])
 
+optimizer = tf.keras.optimizers.Adam(lr=0.0000001)
+opt = tf.keras.optimizers.SGD(lr=0.01, momentum=0.9, clipnorm=1.0)
 
-optimizer = tf.keras.optimizers.Adam()
-model.compile(  optimizer=optimizer,
-                loss='binary_crossentropy', metrics=['accuracy'])
+model.compile(  optimizer=opt,
+                loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
 print(model.summary())
 
@@ -122,6 +78,6 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(checkPointDIR,
                                                      verbose=0)
 
 while True:
-    history = model.fit(trainX, trainY, epochs = 10, batch_size = 1024, shuffle=True, validation_split=0.05, callbacks=[cp_callback])
+    history = model.fit(trainX, trainY, epochs = 10, batch_size = 256, validation_data=(testX, testY))
 
     model.save_weights('training/bitcoinWeights.h5')
