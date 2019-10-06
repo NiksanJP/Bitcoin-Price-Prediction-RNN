@@ -53,10 +53,10 @@ model = tf.keras.models.Sequential([
     #tf.keras.layers.Dropout(0.2),
     
     #OUTPUT LAYER
-    tf.keras.layers.Dense(2, activation='softmax')
+    tf.keras.layers.Dense(3, activation='softmax')
 ])
 
-optimizer = tf.keras.optimizers.Adam(lr=0.0000001)
+optimizer = tf.keras.optimizers.Adam()
 opt = tf.keras.optimizers.SGD(lr=0.01, momentum=0.9, clipnorm=1.0)
 
 model.compile(  optimizer=opt,

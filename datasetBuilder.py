@@ -283,6 +283,7 @@ def buildFinalTrainingData():
     df = df[['Unix Timestamp', 'Open', 'High', 'Low', 'Close']]
     df = df.sort_values('Unix Timestamp', ascending=True)
     df = df.drop('Unix Timestamp', axis=1)
+    df = df.dropna()
 
     #Convert to Numpy
     df = df.to_numpy()
@@ -331,15 +332,15 @@ def buildFinalTrainingData():
     trainY[(trainY<brokerFees)&(trainY>-brokerFees)] = 3000000
 
     #Convert 1 to 0 and 2 to 1 and 3 to 2
-    # 1  is sell
-    # 2 is buy
-    # 3 is do nothing
+    # 0  is sell
+    # 1 is buy
+    # 2 is do nothing
     indexes = np.where(trainY==1000000)
-    trainY[indexes] = 1
+    trainY[indexes] = int(0)
     indexes = np.where(trainY==2000000)
-    trainY[indexes] = 2
+    trainY[indexes] = int(1)
     indexes = np.where(trainY==3000000)
-    trainY[indexes] = 3
+    trainY[indexes] = int(2)
 
     #Display Data
     #plt.hist(trainY)
@@ -354,14 +355,14 @@ def buildFinalTrainingData():
     Y = trainY
 
 
-    if np.count_nonzero(Y==1) < np.count_nonzero(Y==2):
-        count = np.count_nonzero(Y==1)
+    if np.count_nonzero(Y==0) < np.count_nonzero(Y==1):
+        count = np.count_nonzero(Y==0)
     else:
-        count = np.count_nonzero(Y==2)
+        count = np.count_nonzero(Y==1)
 
-    sellIndexes = np.where(trainY==1)
-    buyIndexes = np.where(trainY==2)
-    DNsIndexes = np.where(trainY==3)
+    sellIndexes = np.where(trainY==0)
+    buyIndexes = np.where(trainY==1)
+    DNsIndexes = np.where(trainY==2)
 
     buysX = X[buyIndexes]
     buysY = Y[buyIndexes]
@@ -383,19 +384,21 @@ def buildFinalTrainingData():
     testX = np.reshape(testX, (testX.shape[0], 1, testX.shape[1]))
     testY = np.reshape(testY, (testY.shape[0], 1))
 
-    np.save('trainX', trainX)
-    np.save('trainY', trainY)
-    np.save('testX', testX)
-    np.save('testY', testY)
+    np.save('trainTestData/trainX', trainX)
+    np.save('trainTestData/trainY', trainY)
+    np.save('trainTestData/testX', testX)
+    np.save('trainTestData/testY', testY)
         
     print(trainX.shape)
     print(trainY.shape)
     print(testX.shape)
     print(testY.shape)
     
+    plt.hist(testY)
     plt.hist(trainY)
     plt.savefig('dataDistribution.png')
-    plt.show()
-    plt.waitforbuttonpress()
-    
+    #plt.show()
+    #plt.waitforbuttonpress()
+
+#initializeAndRun()
 buildFinalTrainingData()
